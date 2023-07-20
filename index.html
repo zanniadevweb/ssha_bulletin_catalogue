@@ -1,0 +1,393 @@
+<!DOCTYPE HTML>
+<html lang="en">
+	<head>
+		<title>GoogleSheetsDB - Alexandre ZANNI</title>
+	</head>
+		<body style="padding-left: 50px;">
+			<button id="fileButtonDownloadCSV">Enregistrer au format CSV</button></li></br></br>
+			<span id="spanSaisir">Saisir :</span>
+		 	<input type="text" id="inputFilterAction" onkeyup="selectFilterAction()" placeholder="valeur / texte..." title="Type in a name">
+			<button id="sortButton" onclick="selectFilterAction()" disabled hidden>Trier !</button>
+
+			Filtrer par :
+			<select id="selectFilterAction" onchange="hideInputOnAction()">
+				<option value="0">nom</option>
+				<option value="1">valeur</option>
+				<option value="2">ordre</option>
+			</select>
+			sur la colonne :
+			<select id="selectFilterActionTable"></select>
+
+			<span id="spanAvecPourOption" style="display: none;">avec pour option :</span>
+			<select disabled hidden id="selectedBinaryOperator">
+				<option value="0"><</option>
+				<option value="1"><=</option>
+				<option value="2">=</option>
+				<option value="3">></option>
+				<option value="4">>=</option>
+			</select>
+			<select disabled hidden id="selectedOrder">
+				<option value="0">Croissant</option>
+				<option value="1">Décroissant</option>
+			</select>
+
+			<div id="tableFruitsAndVegetables" class="table-wrapper"></div>
+		</body>
+
+			<script>
+			var table = '';
+			var trValues = '';
+			var tableValues = [];
+			var trVal = '';
+			var tmpIdTable = '';
+			var realIdTable = '';
+			var tableToCsvValues = [];
+			var tableChildCellOneLine = [];
+			var tableOneLine = [];
+			var trHeadersStr = '';
+			var trHeadersValues = [];
+			var singleHeaderValues = [];
+			var csvSeparatorChar = ';';
+			var arrayFromJsonData = [];
+			const download = function (data, nameFile = 'result', blobFileFormat = 'text/csv', fileExtension = '.csv') {
+					// Creating a Blob for having a csv file format
+					// and passing the data with type
+					const blob = new Blob([data], { type: blobFileFormat });
+					// Creating an object for downloading url
+					const url = window.URL.createObjectURL(blob)
+					// Creating an anchor(a) tag of HTML
+					const a = document.createElement('a')
+					// Passing the blob downloading url
+					a.setAttribute('href', url)
+					// Setting the anchor tag attribute for downloading
+					// and passing the download file name
+					a.setAttribute('download', nameFile + fileExtension);
+					// Performing a download with click
+					a.click()
+			}
+			const csvmaker = function (data) {
+					csvRows = [];
+					csvRows.push(data)
+					return csvRows.join('\n')
+			}
+			const getCSV = async function () {
+					table = document.getElementById("tableFruitsAndVegetables");
+					trHeadersStr = document.getElementById("tableFruitsAndVegetables").getElementsByTagName("thead")[0].outerHTML;
+					trHeadersValues.push(trHeadersStr.replace('<th>','').replace('<thead>','').replace('</thead>','').split('</th>'))
+					if (table !== undefined && table.getElementsByTagName("tbody")[0] !== undefined) {
+							trValues = table.getElementsByTagName("tbody")[0].rows;
+							for (var k = 0; k < trValues.length; k++) {
+								tableChildCellOneLine = trValues[k].children
+								for (var childCell = 0; childCell < tableChildCellOneLine.length; childCell++) {
+									strChildCellValue = tableChildCellOneLine[childCell].innerHTML;
+									if (strChildCellValue.startsWith('<a href=')) {
+										strChildCellValue = strChildCellValue.split('href=')[1].split('>')[0].replaceAll('"','');
+									}
+									tableOneLine.push(strChildCellValue)
+								}
+								childCell = 0
+								tableToCsvValues.push(tableOneLine.join(csvSeparatorChar) + '\\r');
+								tableOneLine = [];
+							}
+						var data =  '';
+						var currHeader = '';
+						var cleanHeaders = []
+						for (var objIt = 0; objIt <= trHeadersValues.length; objIt++) {
+							if (trHeadersValues[objIt] !== undefined) {
+								for (var arrIt = 0; arrIt < trHeadersValues[objIt].length; arrIt++) {
+									currHeader = trHeadersValues[objIt][arrIt].replace('<th>','');
+										cleanHeaders.push(currHeader)
+								}
+							}
+						}
+						singleHeaderValues = (cleanHeaders.join(csvSeparatorChar) + '\\r').split();
+						data = singleHeaderValues.concat(tableToCsvValues).join('').replaceAll('\\r', '\n').replaceAll('&nbsp;','').replaceAll('&amp;','')
+						const csvdata = csvmaker(data);
+						download(data, 'csv_file', 'text/csv', '.csv');
+					}
+			}
+
+			const btnCSV = document.getElementById('fileButtonDownloadCSV');
+			btnCSV.addEventListener('click', getCSV);
+
+			var tab_name = 'ssha_bulletin_catalogue';
+			var spreadsheet_id = '1Nlseii0U4EeDSHUbAZq6miZgQJfCeEg29jBgRSWn5j0';
+			var api_key = 'AIzaSyBJuEoW4en2SpnSP0FSfsVq-jPB7XHcT8I';
+			var url = 'https://sheets.googleapis.com/v4/spreadsheets/' +
+			           spreadsheet_id + '/values/' + tab_name +
+			           '?alt=json&key=' + api_key;
+
+			function loadJSON(callback) {
+				 var xobj = new XMLHttpRequest();
+						 xobj.overrideMimeType("application/json");
+				 xobj.open('GET', url, true);
+				 xobj.onreadystatechange = function () {
+							 if (xobj.readyState == 4 && xobj.status == "200") {
+								 // Required use of an anonymous callback as .open will NOT return a value but simply returns undefined in asynchronous mode
+								 callback(xobj.responseText);
+							 }
+				 };
+				 xobj.send(null);
+		 	}
+
+			loadJSON(function(response) {
+			// Parse JSON string into object
+			var actual_JSON = JSON.parse(response);
+				jsonToArrayValues = actual_JSON.values;
+				console.log('***** JSON HAS BEEN SUCCESSFULLY RETRIEVED FROM GOOGLE SHEETS FILE****')
+				console.log(response);
+				console.log(jsonToArrayValues);
+				arrayFromJsonData = jsonToArrayValues;
+				importJsonGoogleSheetsData(jsonToArrayValues, 'tableFruitsAndVegetables');
+			});
+
+			function importJsonGoogleSheetsData(list, tableId) {
+				var cols = [];
+
+				for (var i = 0; i < list.length; i++) {
+					for (var k in list[i]) {
+						if (cols.indexOf(k) === -1) {
+							cols.push(k);
+						}
+					}
+				}
+
+				var table = document.createElement("table");
+							table.setAttribute("class", "sortable");
+							table.setAttribute("border", "1px solid black");
+							table.setAttribute("id", "tableData");
+
+						var thead = document.createElement("thead");
+						var tr = table.appendChild(thead);
+						var selectFilterAction = document.getElementById("selectFilterActionTable");
+						var options = [];
+
+				for (var i = 0; i < cols.length; i++) {
+					var theader = document.createElement("th");
+					theader.innerHTML = list[0][i];
+					var optionSelectFilterAction = new Option(theader.innerHTML, i);
+					selectFilterAction.appendChild(optionSelectFilterAction);
+					tr.appendChild(theader);
+				}
+
+				for (var i = 1; i < list.length; i++) {
+					trow = table.insertRow(-1);
+					for (var j = 0; j < cols.length; j++) {
+						var cell = trow.insertCell(-1);
+						cell.innerHTML = list[i][cols[j]];
+					}
+				}
+
+				var el = document.getElementById(tableId);
+				el.innerHTML = "";
+				el.appendChild(table);
+				console.log('***** JSON HAS BEEN SUCCESSFULLY LOADED INTO TABLE****')
+        }
+
+			function selectFilterAction() {
+				var action = selectTable("selectFilterAction");
+				var columnId = selectTable("selectFilterActionTable");
+				if (action == 0) { // TRI PAR NOM
+					searchTable('inputFilterAction','tableFruitsAndVegetables',columnId);
+				} else if (action == 1) { // TRI PAR VALEUR
+					searchBinaryOperatorTable('inputFilterAction','tableFruitsAndVegetables',columnId);
+				} else if (action == 2) { // TRI PAR ORDRE
+					sortTable('inputFilterAction','tableFruitsAndVegetables',columnId);
+				}
+			}
+
+			function hideInputOnAction() {
+				var action = selectTable("selectFilterAction");
+				var selectedBinaryOperator = document.getElementById("selectedBinaryOperator");
+				var inputFilterAction = document.getElementById("inputFilterAction");
+				var sortButton = document.getElementById("sortButton");
+				var selectedOrder = document.getElementById("selectedOrder");
+				var textSaisir = document.getElementById("spanSaisir");
+				var textAvecPourOption = document.getElementById("spanAvecPourOption");
+				if (action == 0) { // TRI PAR NOM
+					disableAndHideInput(sortButton);
+					disableAndHideInput(inputFilterAction, false);
+					disableAndHideInput(selectedBinaryOperator);
+					disableAndHideInput(selectedOrder);
+					disableAndHideInput(textSaisir, false);
+					disableAndHideInput(textAvecPourOption);
+				} else if (action == 1) { // TRI PAR VALEUR
+					disableAndHideInput(sortButton);
+					disableAndHideInput(inputFilterAction, false);
+					disableAndHideInput(selectedBinaryOperator, false);
+					disableAndHideInput(selectedOrder);
+					disableAndHideInput(textSaisir, false);
+					disableAndHideInput(textAvecPourOption, false);
+				} else if (action == 2) { // TRI PAR ORDRE
+					disableAndHideInput(sortButton, false);
+					disableAndHideInput(inputFilterAction);
+					disableAndHideInput(selectedBinaryOperator);
+					disableAndHideInput(selectedOrder, false);
+					disableAndHideInput(textSaisir);
+					disableAndHideInput(textAvecPourOption, false);
+				}
+			}
+
+			function disableAndHideInput(input, isToDisableAndHide = true) {
+				if (isToDisableAndHide) {
+					input.disabled = true;
+					if (input.tagName.toLowerCase() === 'input') {
+						input.setAttribute('type','hidden');
+					} else if (input.tagName.toLowerCase() === 'span') {
+						input.style.display= 'none';
+					} else {
+						input.hidden = true
+					}
+				} else {
+					input.disabled = false;
+					if (input.tagName.toLowerCase() === 'input') {
+						input.setAttribute('type','text');
+					} else if (input.tagName.toLowerCase() === 'span') {
+						input.style.display= '';
+					} else {
+						input.hidden = false
+					}
+				}
+
+			}
+
+			function selectTable(columnId) {
+				var columnSearchId = document.getElementById(columnId).value;
+				return columnSearchId;
+			}
+
+			function searchTable(input,table,columnId) {
+				var columnSearchId = columnId;
+				var trValues = document.getElementById("tableData").getElementsByTagName("tbody")[0].rows;
+				var input, filter, table, tr, td, i, txtValue;
+				input = document.getElementById(input);
+				filter = input.value.toUpperCase();
+				table = document.getElementById(table);
+				tr = table.getElementsByTagName("tr");
+
+				for (i = 0; i < tr.length; i++) {
+					td = tr[i].getElementsByTagName("td")[columnSearchId];
+					if (td) {
+						txtValue = td.textContent || td.innerText;
+						if (txtValue.toUpperCase().indexOf(filter) > -1) {
+						tr[i].style.display = "";
+						} else {
+						tr[i].style.display = "none";
+						}
+					}
+				}
+			}
+
+			function searchBinaryOperatorTable(input,table,columnId) {
+				var columnSearchId = columnId;
+				var binaryOperatorId = selectTable("selectedBinaryOperator");
+				var input, table, tr, td, i, txtValue;
+
+				if (binaryOperatorId == 0) {
+				binaryOperator = '<';
+				} else if (binaryOperatorId == 1) {
+					binaryOperator = '<=';
+				}  else if (binaryOperatorId == 2) {
+					binaryOperator = '=';
+				} else if (binaryOperatorId == 3) {
+					binaryOperator = '>';
+				} else if (binaryOperatorId == 4) {
+					binaryOperator = '>=';
+				}
+
+				input = document.getElementById(input);
+				table = document.getElementById(table);
+				tr = table.getElementsByTagName("tr");
+
+				for (i = 0; i < tr.length; i++) {
+					td = tr[i].getElementsByTagName("td")[columnSearchId];
+					if (td) {
+						txtValue = td.textContent || td.innerText;
+						if (binaryOperator == '<') {
+							if ((txtValue*1 < input.value*1) || ( input.value == "" ) ) {
+								tr[i].style.display = "";
+							} else {
+								tr[i].style.display = "none";
+							}
+						} else if (binaryOperator == '<=') {
+							if ((txtValue*1 <= input.value*1) || ( input.value == "" ) ) {
+								tr[i].style.display = "";
+							} else {
+								tr[i].style.display = "none";
+							}
+						} else if (binaryOperator == '=') {
+							if ((txtValue*1 == input.value*1) || ( input.value == "" ) ) {
+								tr[i].style.display = "";
+							} else {
+								tr[i].style.display = "none";
+							}
+						} else if (binaryOperator == '>') {
+							if ((txtValue*1 > input.value*1) || ( input.value == "" ) ) {
+								tr[i].style.display = "";
+							} else {
+								tr[i].style.display = "none";
+							}
+						} else if (binaryOperator == '>=') {
+							if ((txtValue*1 >= input.value*1) || ( input.value == "" ) ) {
+								tr[i].style.display = "";
+							} else {
+								tr[i].style.display = "none";
+							}
+						}
+					}
+				}
+			}
+
+			function sortTable(input,table,columnId) {
+				var selectedOrder = document.getElementById("selectedOrder").value;
+				var columnSearchId = columnId;
+				var switching, i, x, y, shouldSwitch;
+				var input, table, tr, i, txtValue;
+				input = document.getElementById(input);
+				filter = input.value.toUpperCase();
+				table = document.getElementById(table);
+				tr = table.getElementsByTagName("tr");
+				switching = true;
+
+				while (switching) {
+					switching = false;
+					if (selectedOrder == 0) { // ORDRE CROISSANT
+						for (i = 0; i < tr.length - 1; i++) {
+							shouldSwitch = false;
+							x = tr[i].getElementsByTagName("td")[columnSearchId];
+							y = tr[i + 1].getElementsByTagName("td")[columnSearchId];
+							if (convertAccentToStandardLetter(x.innerHTML.toLowerCase()) > convertAccentToStandardLetter(y.innerHTML.toLowerCase())) {
+								shouldSwitch = true;
+								break;
+							}
+						}
+					} else if (selectedOrder == 1) { // ORDRE DECROISSANT
+						for (i = 0; i < tr.length - 1; i++) {
+							shouldSwitch = false;
+							x = tr[i].getElementsByTagName("td")[columnSearchId];
+							y = tr[i + 1].getElementsByTagName("td")[columnSearchId];
+							if (convertAccentToStandardLetter(x.innerHTML.toLowerCase()) < convertAccentToStandardLetter(y.innerHTML.toLowerCase())) {
+								shouldSwitch = true;
+								break;
+							}
+						}
+					}
+					if (shouldSwitch) {
+						tr[i].parentNode.insertBefore(tr[i + 1], tr[i]);
+						switching = true;
+					}
+				}
+			}
+
+			function convertAccentToStandardLetter(value) {
+				if (!isNaN(value)) { // NOMBRE
+					return parseInt(value);
+				} else { // TEXTE
+					return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+				}
+			}
+
+		</script>
+
+	</body>
+</html>
