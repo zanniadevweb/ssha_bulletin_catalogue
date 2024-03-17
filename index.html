@@ -174,7 +174,12 @@
 					trow = table.insertRow(-1);
 					for (var j = 0; j < cols.length; j++) {
 						var cell = trow.insertCell(-1);
-						cell.innerHTML = list[i][cols[j]];
+						var currValue = list[i][cols[j]]
+						if (currValue === undefined) {
+							cell.innerHTML = '';
+						} else {
+							cell.innerHTML = currValue;
+						}
 					}
 				}
 
